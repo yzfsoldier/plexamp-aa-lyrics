@@ -122,6 +122,18 @@ The log shows whether Android Auto was detected, whether lyrics were loaded, and
 - **Only synced lyrics** are shown, not plain text without timestamps.
 - **Unencrypted HTTP to the server** is blocked by Android for this app. Please use the HTTPS address.
 
+## License
+
+Copyright (C) 2026 yzfsoldier
+
+This project is free software: you can redistribute it and/or modify it under the terms of the
+**GNU General Public License v3** as published by the Free Software Foundation, either version 3
+of the License, or (at your option) any later version. See [LICENSE](LICENSE) for the full text.
+
+The license covers the code in this repository only. It does not apply to Plexamp itself, which
+remains the property of Plex Inc., nor to the third-party build tools downloaded by
+`build/fetch-tools.sh`, which come with their own licenses.
+
 ## Disclaimer
 
 Unofficial project, not affiliated with Plex Inc. Plex and Plexamp are trademarks of Plex Inc. Intended for personal use with a Plexamp APK you obtained yourself. Modifying the app may violate Plex's terms of service.

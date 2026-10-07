@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Plexamp AA Lyrics – synced lyrics for Plexamp on Android Auto
+# Copyright (C) 2026 yzfsoldier
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Licensed under the GNU General Public License v3 or later – see LICENSE.
 # Downloads the build tools into build/tools/ (once, about 90 MB). Everything comes from GitHub.
 set -euo pipefail
 

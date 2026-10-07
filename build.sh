@@ -1,4 +1,8 @@
 #!/usr/bin/env bash
+# Plexamp AA Lyrics – synced lyrics for Plexamp on Android Auto
+# Copyright (C) 2026 yzfsoldier
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Licensed under the GNU General Public License v3 or later – see LICENSE.
 # Builds the Android Auto lyrics version from an original Plexamp APK.
 #
 #   ./build.sh <Plexamp.apk> [output.apk]
