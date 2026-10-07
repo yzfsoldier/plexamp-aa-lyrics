@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Setzt die Haken des Lyrics-Patches in den von apktool dekompilierten Plexamp-Code (smali).
+Inserts the lyrics patch hooks into Plexamp's code as decompiled by apktool (smali).
 
-Aufruf:  python3 patch_smali.py <apktool-Ausgabeordner>
+Usage:  python3 patch_smali.py <apktool output folder>
 
-Jeder Patch sucht eine feste Ankerstelle. Passt die bei einer neuen Plexamp-Version
-nicht mehr, bricht das Skript mit einer klaren Meldung ab, statt still eine kaputte
-APK zu bauen. Bereits gepatchte Dateien werden erkannt und übersprungen.
+Every patch looks for a fixed anchor. If that anchor no longer matches in a new
+Plexamp version, the script stops with a clear message instead of silently building
+a broken APK. Files that are already patched are detected and skipped.
 """
 import glob
 import os
@@ -20,28 +20,28 @@ class PatchError(Exception):
 
 
 def find_class(root, cls):
-    """Findet die smali-Datei einer Klasse in smali/, smali_classes2/, ..."""
+    """Finds the smali file of a class in smali/, smali_classes2/, ..."""
     hits = glob.glob(os.path.join(root, "smali*", *cls.split("/")) + ".smali")
     if not hits:
-        raise PatchError(f"Klasse {cls} nicht gefunden")
+        raise PatchError(f"class {cls} not found")
     return hits[0]
 
 
 def replace_once(text, old, new, what):
     n = text.count(old)
     if n != 1:
-        raise PatchError(f"{what}: Ankerstelle {n}x gefunden (erwartet genau 1)")
+        raise PatchError(f"{what}: anchor found {n} times (expected exactly 1)")
     return text.replace(old, new)
 
 
-# ---------------------------------------------------------------- einzelne Patches
+# ---------------------------------------------------------------- individual patches
 
 def patch_treble_player(root):
-    """TreblePlayer.updateFromState: jede Wiedergabe-Aktualisierung läuft durch LyricsHook.transform."""
+    """TreblePlayer.updateFromState: every playback update goes through LyricsHook.transform."""
     f = find_class(root, "tv/plex/labs/plexamp/media/TreblePlayer")
     s = open(f, encoding="utf-8").read()
     if HOOK + "LyricsHook;->transform" in s:
-        return "bereits gepatcht"
+        return "already patched"
     anchor = "    iput-object v1, v0, Ltv/plex/labs/plexamp/media/TreblePlayer;->lastUpdate:Ltv/plex/labs/plexamp/media/PlayerStateAdapter$PlayerStateUpdate;\n"
     hook = ("    invoke-static {v0, v1}, Ltv/plex/labs/plexamp/lyrics/LyricsHook;->transform("
             "Ltv/plex/labs/plexamp/media/TreblePlayer;Ltv/plex/labs/plexamp/media/PlayerStateAdapter$PlayerStateUpdate;)"
@@ -53,11 +53,11 @@ def patch_treble_player(root):
 
 
 def patch_main_activity(root):
-    """MainActivity.onCreate/onNewIntent: Einstellungsdialog + Kurzbefehl am App-Icon."""
+    """MainActivity.onCreate/onNewIntent: settings dialog + app-icon shortcut."""
     f = find_class(root, "tv/plex/labs/plexamp/MainActivity")
     s = open(f, encoding="utf-8").read()
     if HOOK + "LyricsSettings;->onIntent" in s:
-        return "bereits gepatcht"
+        return "already patched"
     call = ("    invoke-static {p0, p1}, Ltv/plex/labs/plexamp/lyrics/LyricsSettings;->onIntent("
             "Landroid/app/Activity;Landroid/content/Intent;)V\n\n")
     done = 0
@@ -69,25 +69,25 @@ def patch_main_activity(root):
         if is_target:
             idx = block.rfind("    return-void")
             if idx < 0:
-                raise PatchError("MainActivity: return-void nicht gefunden")
-            # In beiden Methoden steht das Intent an dieser Stelle in p1.
+                raise PatchError("MainActivity: return-void not found")
+            # In both methods the intent is in p1 at this point.
             if "onCreate" in header and "getIntent()Landroid/content/Intent;\n\n    move-result-object p1" not in block:
-                raise PatchError("MainActivity.onCreate: Intent liegt nicht in p1 (Code hat sich geändert)")
+                raise PatchError("MainActivity.onCreate: intent is not in p1 (code has changed)")
             block = block[:idx] + call + block[idx:]
             done += 1
         out.append(block)
     if done != 2:
-        raise PatchError(f"MainActivity: {done} von 2 Methoden gefunden")
+        raise PatchError(f"MainActivity: found {done} of 2 methods")
     open(f, "w", encoding="utf-8").write(".end method".join(out))
     return "ok"
 
 
 def patch_custom_actions(root):
-    """CustomActions: eigene Taste in der Android-Auto-Leiste und erlaubter Befehl."""
+    """CustomActions: our button in the Android Auto control bar and its allowed command."""
     f = find_class(root, "tv/plex/labs/plexamp/media/CustomActions")
     s = open(f, encoding="utf-8").read()
     if "lyricsOrig" in s:
-        return "bereits gepatcht"
+        return "already patched"
     s = replace_once(s,
                      ".method public final getALL_COMMANDS()Lcom/google/common/collect/ImmutableList;",
                      ".method public final getALL_COMMANDS$lyricsOrig()Lcom/google/common/collect/ImmutableList;",
@@ -130,11 +130,11 @@ def patch_custom_actions(root):
 
 
 def patch_session_callback(root):
-    """PlexampSessionCallback.onCustomCommand: Druck auf unsere Taste abfangen."""
+    """PlexampSessionCallback.onCustomCommand: intercept presses of our button."""
     f = find_class(root, "tv/plex/labs/plexamp/media/PlexampSessionCallback")
     s = open(f, encoding="utf-8").read()
     if HOOK + "LyricsHook;->handleCommand" in s:
-        return "bereits gepatcht"
+        return "already patched"
     anchor = ('    const-string p1, "args"\n\n'
               '    invoke-static {p4, p1}, Lkotlin/jvm/internal/Intrinsics;->checkNotNullParameter(Ljava/lang/Object;Ljava/lang/String;)V\n')
     hook = """
@@ -154,22 +154,22 @@ def patch_session_callback(root):
 
 
 def check_members(root):
-    """Prüft, dass Felder, auf die der Patch per Reflection zugreift, noch existieren."""
+    """Checks that fields the patch accesses via reflection still exist."""
     f = find_class(root, "tv/plex/labs/plexamp/media/AndroidCarBridge")
     s = open(f, encoding="utf-8").read()
     for field in ("appContext:Landroid/content/Context;",
                   "librarySession:Landroidx/media3/session/MediaLibraryService$MediaLibrarySession;"):
         if field not in s:
-            raise PatchError(f"AndroidCarBridge: Feld {field.split(':')[0]} fehlt")
+            raise PatchError(f"AndroidCarBridge: field {field.split(':')[0]} is missing")
     return "ok"
 
 
 PATCHES = [
-    ("TreblePlayer (Songtext-Anzeige)", patch_treble_player),
-    ("MainActivity (Einstellungen)", patch_main_activity),
-    ("CustomActions (Taste)", patch_custom_actions),
-    ("PlexampSessionCallback (Tastendruck)", patch_session_callback),
-    ("AndroidCarBridge (Felder prüfen)", check_members),
+    ("TreblePlayer (lyrics display)", patch_treble_player),
+    ("MainActivity (settings)", patch_main_activity),
+    ("CustomActions (button)", patch_custom_actions),
+    ("PlexampSessionCallback (button press)", patch_session_callback),
+    ("AndroidCarBridge (check fields)", check_members),
 ]
 
 
@@ -183,10 +183,10 @@ def main():
         try:
             print(f"  {name}: {fn(root)}")
         except PatchError as e:
-            print(f"  {name}: FEHLER – {e}")
+            print(f"  {name}: ERROR – {e}")
             failed = True
     if failed:
-        print("\nMindestens ein Patch passt nicht zu dieser Plexamp-Version. Abbruch.")
+        print("\nAt least one patch does not match this Plexamp version. Aborting.")
         sys.exit(1)
 
 

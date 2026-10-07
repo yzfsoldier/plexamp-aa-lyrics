@@ -82,7 +82,7 @@ The patched app won't receive updates from the Play Store. For a new Plexamp ver
 `build/patch_smali.py` checks every place where the patch hooks into Plexamp. If Plexamp's code has changed there, the build stops with a specific message, for example:
 
 ```
-  CustomActions (Taste): FEHLER – CustomActions.buildLayout: Ankerstelle 0x gefunden (erwartet genau 1)
+  CustomActions (button): ERROR – CustomActions.buildLayout: anchor found 0 times (expected exactly 1)
 ```
 
 So you never end up with a broken APK. The affected patch then needs to be adapted to the new code. Running the script again on already-patched code doesn't insert anything twice.
