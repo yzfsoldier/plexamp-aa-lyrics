@@ -1,126 +1,128 @@
 # Plexamp AA Lyrics
 
-**Synchronisierte Songtexte für Plexamp in Android Auto.**
+**Synced lyrics for Plexamp on Android Auto.**
 
-Plexamp zeigt Songtexte nur auf dem Handy an. Dieser Patch bringt sie auf den Bildschirm im Auto: Während ein Song läuft, steht die aktuelle Zeile im „Gerade läuft“-Bildschirm von Android Auto und wechselt im Takt der Musik.
+Plexamp only shows lyrics on the phone. This patch puts them on your car's screen: while a song plays, the current line appears on Android Auto's "Now Playing" screen and advances in time with the music.
 
-Das Repo enthält **keinen Plexamp-Code und keine APK**. Es enthält nur den Patch und ein Skript, das ihn in deine eigene Plexamp-APK einbaut.
+This repo contains **no Plexamp code and no APK**. It contains only the patch and a script that builds it into your own copy of the Plexamp APK.
 
-## Funktionen
+## Features
 
-- **Zeitgesteuerte Songtexte im Auto.** Die aktuelle Zeile erscheint groß als Titel, darunter „Titel – Interpret“.
-- **Taste mit drei Stufen** in der Android-Auto-Steuerleiste, reihum:
+- **Synced lyrics in the car.** The current line is shown large as the title, with "Title – Artist" below it.
+- **Three-state button** in the Android Auto control bar, cycling through:
 
-  | Stufe | Anzeige |
+  | Mode | What you see |
   |---|---|
-  | **An** | aktuelle Zeile, darunter „Titel – Interpret“ |
-  | **Erweitert** | aktuelle Zeile, darunter die nächste, im Albumfeld die übernächste |
-  | **Aus** | normale Anzeige ohne Songtext |
+  | **On** | current line, with "Title – Artist" below |
+  | **Expanded** | current line, the next line below it, and the line after that in the album field |
+  | **Off** | the normal display without lyrics |
 
-  Die gewählte Stufe bleibt nach einem Neustart erhalten.
-- **Nur im Auto.** Auf dem Handy, im Sperrbildschirm und in der Benachrichtigung bleibt alles wie gewohnt.
-- **Einstellungsdialog** über einen Kurzbefehl am App-Icon (lange drücken → „Songtexte AA“), mit Verbindungstest.
-- Songtexte kommen **direkt von deinem Plex-Server**: Plex-Pass-Songtexte (LyricFind) und LRC-Dateien.
+  The selected mode is remembered across restarts.
+- **Car only.** On the phone, lock screen and notification everything stays as usual.
+- **Settings dialog** via a shortcut on the app icon (long-press → "Songtexte AA"), including a connection test.
+- Lyrics come **straight from your Plex server**: Plex Pass lyrics (LyricFind) as well as LRC files.
 
-## Voraussetzungen
+> The settings dialog and the button labels are in German ("Songtext: An / Erweitert / Aus").
 
-- Plexamp für Android als APK (getestet mit **4.50.19**)
-- ein Plex-Server mit zeitgesteuerten Songtexten, erreichbar über **HTTPS** (die übliche `…plex.direct:32400`-Adresse)
-- zum Bauen: Java JDK 11 oder neuer, `python3`, `curl`, `unzip`, `zip`; Linux, macOS oder Windows mit WSL
+## Requirements
 
-## Bauen
+- Plexamp for Android as an APK (tested with **4.50.19**)
+- a Plex server with synced (timed) lyrics, reachable via **HTTPS** (the usual `…plex.direct:32400` address)
+- to build: Java JDK 11 or newer, `python3`, `curl`, `unzip`, `zip`; Linux, macOS or Windows with WSL
+
+## Building
 
 ```bash
 git clone https://github.com/yzfsoldier/plexamp-aa-lyrics.git
 cd plexamp-aa-lyrics
-./build.sh /pfad/zu/Plexamp-4_50_19.apk
+./build.sh /path/to/Plexamp-4_50_19.apk
 ```
 
-Das Ergebnis `Plexamp-4_50_19-AA-Lyrics.apk` liegt danach im Projektordner. Ein Durchlauf dauert etwa eine Minute.
+The result, `Plexamp-4_50_19-AA-Lyrics.apk`, ends up in the project folder. A full run takes about a minute.
 
-Was `build.sh` macht:
+What `build.sh` does:
 
-1. lädt beim ersten Mal die Werkzeuge nach `build/tools/` (apktool, dex-tools, uber-apk-signer, android.jar – zusammen ca. 90 MB, alles von GitHub)
-2. zerlegt die APK mit apktool
-3. setzt die Haken in den Plexamp-Code (`build/patch_smali.py`)
-4. kompiliert den Patch aus `src/` und wandelt ihn in Android-dex um
-5. führt die Selbsttests aus `test/` aus
-6. baut die APK wieder zusammen und fügt den Patch als zusätzliche `classesN.dex` ein
-7. richtet sie aus und signiert sie
+1. on the first run, downloads the tools into `build/tools/` (apktool, dex-tools, uber-apk-signer, android.jar – about 90 MB in total, all from GitHub)
+2. decompiles the APK with apktool
+3. inserts the hooks into Plexamp's code (`build/patch_smali.py`)
+4. compiles the patch from `src/` and converts it to Android dex
+5. runs the self-tests in `test/`
+6. rebuilds the APK and adds the patch as an extra `classesN.dex`
+7. aligns and signs it
 
-### Signierschlüssel
+### Signing key
 
-Android nimmt ein Update nur an, wenn es mit **demselben Schlüssel** signiert ist wie die installierte App. Gebaut wird mit `ks.jks` im Projektordner:
+Android only accepts an update if it is signed with **the same key** as the installed app. Builds are signed with `ks.jks` in the project folder:
 
-- **Fehlt die Datei**, erzeugt `build.sh` automatisch einen neuen Schlüssel.
-- **Hast du schon eine gepatchte Version installiert**, leg deren `ks.jks` in den Projektordner. Dann lässt sich die neue Version einfach drüber installieren.
+- **If the file is missing**, `build.sh` generates a new key automatically.
+- **If you already have a patched version installed**, put its `ks.jks` into the project folder. The new build will then install right over it.
 
-Der Schlüssel steht in der `.gitignore` und landet nie im Repo. Einen anderen Schlüssel gibst du per Umgebungsvariablen an:
+The key is listed in `.gitignore` and never ends up in the repo. To use a different key, set environment variables:
 
 ```bash
-KEYSTORE=mein.jks KS_ALIAS=meinalias KS_PASS=geheim ./build.sh Plexamp.apk
+KEYSTORE=my.jks KS_ALIAS=myalias KS_PASS=secret ./build.sh Plexamp.apk
 ```
 
-## Installieren und einrichten
+## Installing and setting up
 
-1. **Original-Plexamp deinstallieren.** Die gepatchte App hat eine andere Signatur. Einstellungen und Downloads gehen dabei verloren.
-2. Die gebaute APK installieren und Plexamp **einmal öffnen**. Dabei entsteht der Kurzbefehl am App-Icon.
-3. **Android Auto für Apps außerhalb des Play Stores freischalten:**
-   - In den Android-Auto-Einstellungen mehrmals auf „Version“ tippen, bis die Entwickleroptionen erscheinen.
-   - Dort „Unbekannte Quellen“ aktivieren.
-4. **Server eintragen:**
-   - Plexamp-Icon lange drücken → **„Songtexte AA“**.
-   - Am einfachsten: In Plex Web bei einem Titel „Informationen → XML anzeigen“ öffnen und die komplette Adresse aus der Adresszeile einfügen. Das Token steckt darin.
-   - **Testen** antippen, dann **Speichern**.
+1. **Uninstall the original Plexamp.** The patched app has a different signature. Your settings and downloads will be lost.
+2. Install the built APK and **open Plexamp once**. This creates the shortcut on the app icon.
+3. **Allow Android Auto to show apps from outside the Play Store:**
+   - In the Android Auto settings, tap "Version" repeatedly until developer settings are unlocked.
+   - Enable "Unknown sources" there.
+4. **Enter your server:**
+   - Long-press the Plexamp icon → **"Songtexte AA"**.
+   - Easiest way: in Plex Web, open "Get Info → View XML" for any track and paste the full address from the browser's address bar. It already contains your token.
+   - Tap **Testen** (test), then **Speichern** (save).
 
-Updates über den Play Store gibt es für die gepatchte App nicht. Für eine neue Plexamp-Version `build.sh` mit der neuen APK erneut ausführen.
+The patched app won't receive updates from the Play Store. For a new Plexamp version, run `build.sh` again with the new APK.
 
-## Neue Plexamp-Versionen
+## New Plexamp versions
 
-`build/patch_smali.py` prüft jede Stelle, an der der Patch in Plexamp eingreift. Hat sich dort etwas geändert, bricht der Build mit einer konkreten Meldung ab, etwa:
+`build/patch_smali.py` checks every place where the patch hooks into Plexamp. If Plexamp's code has changed there, the build stops with a specific message, for example:
 
 ```
   CustomActions (Taste): FEHLER – CustomActions.buildLayout: Ankerstelle 0x gefunden (erwartet genau 1)
 ```
 
-Es entsteht also keine kaputte APK. Der betroffene Patch muss dann an den neuen Code angepasst werden. Ein erneuter Durchlauf über bereits gepatchten Code fügt nichts doppelt ein.
+So you never end up with a broken APK. The affected patch then needs to be adapted to the new code. Running the script again on already-patched code doesn't insert anything twice.
 
-## Wie es funktioniert
+## How it works
 
-Plexamp meldet den Wiedergabestatus aus seiner React-Native-Oberfläche an eine Android-Mediensitzung (Media3). Diese Sitzung zeigt Android Auto an. Der Patch hängt sich an genau diese Übergabe (`TreblePlayer.updateFromState`):
+Plexamp's React Native UI reports the playback state to an Android media session (Media3), and that session is what Android Auto displays. The patch hooks into exactly this hand-over (`TreblePlayer.updateFromState`):
 
-1. Beim Songwechsel sucht `LyricsCore` den Titel auf deinem Plex-Server und holt den Songtext-Stream (`/library/streams/…?format=xml`).
-2. Ein Takt von 200 ms bestimmt anhand der Wiedergabeposition die aktuelle Zeile.
-3. Wechselt die Zeile, bekommt die Mediensitzung Titel und Untertitel neu. Das passiert nur, solange Android Auto verbunden ist.
+1. When the track changes, `LyricsCore` looks up the track on your Plex server and fetches its lyrics stream (`/library/streams/…?format=xml`).
+2. A 200 ms tick determines the current line from the playback position.
+3. When the line changes, the media session gets a new title and subtitle. This only happens while Android Auto is connected.
 
-| Pfad | Inhalt |
+| Path | Contents |
 |---|---|
-| `src/…/LyricsCore.java` | Server-Abfragen, Plex-XML- und LRC-Parser (reines Java, testbar) |
-| `src/…/LyricsHook.java` | Anzeige in Android Auto, Taste Aus/An/Erweitert, Erkennung von Android Auto |
-| `src/…/LyricsSettings.java` | Einstellungsdialog und Kurzbefehl am App-Icon |
-| `stubs/` | Platzhalter-Signaturen von Plexamp-, Media3- und Guava-Klassen, nur zum Kompilieren |
-| `test/` | Selbsttests: Parser, Abfrage gegen einen Test-Server, Eingabeprüfung |
-| `build/patch_smali.py` | Haken in `TreblePlayer`, `MainActivity`, `CustomActions`, `PlexampSessionCallback` |
-| `build/fetch-tools.sh` | lädt die Build-Werkzeuge |
-| `build.sh` | der komplette Build |
+| `src/…/LyricsCore.java` | server requests, Plex XML and LRC parsers (plain Java, testable) |
+| `src/…/LyricsHook.java` | Android Auto display, Off/On/Expanded button, Android Auto detection |
+| `src/…/LyricsSettings.java` | settings dialog and app-icon shortcut |
+| `stubs/` | placeholder signatures of Plexamp, Media3 and Guava classes, for compiling only |
+| `test/` | self-tests: parsers, requests against a test server, input validation |
+| `build/patch_smali.py` | hooks in `TreblePlayer`, `MainActivity`, `CustomActions`, `PlexampSessionCallback` |
+| `build/fetch-tools.sh` | downloads the build tools |
+| `build.sh` | the complete build |
 
-## Fehlersuche
+## Troubleshooting
 
 ```bash
 adb logcat -s PlexampLyricsMod
 ```
 
-Das Log zeigt, ob Android Auto erkannt wurde, ob Songtexte geladen wurden und welche Anzeigestufe aktiv ist. Tokens werden nie ins Log geschrieben.
+The log shows whether Android Auto was detected, whether lyrics were loaded, and which display mode is active. Tokens are never written to the log.
 
-## Einschränkungen
+## Limitations
 
-- **Android Auto gibt die Oberfläche vor.** Apps können dort keinen eigenen Bildschirm zeichnen, nur Titel, Untertitel und Album füllen. Wie viel davon sichtbar ist, hängt vom Auto ab.
-- **Wo die Taste landet,** neben „Weiter“ oder im ⋯-Menü, entscheidet Android Auto.
-- **Nur zeitgesteuerte Songtexte** werden angezeigt. Reine Texte ohne Zeitangaben nicht.
-- **Unverschlüsseltes HTTP zum Server** blockiert Android in dieser App. Bitte die HTTPS-Adresse verwenden.
+- **Android Auto controls the layout.** Apps can't draw their own screens there, only fill in title, subtitle and album. How much of that is visible depends on the car.
+- **Where the button appears**, next to "Next" or in the ⋯ menu, is up to Android Auto.
+- **Only synced lyrics** are shown, not plain text without timestamps.
+- **Unencrypted HTTP to the server** is blocked by Android for this app. Please use the HTTPS address.
 
-## Hinweis
+## Disclaimer
 
-Inoffizielles Projekt, nicht mit Plex Inc. verbunden. Plex und Plexamp sind Marken von Plex Inc. Gedacht für den privaten Gebrauch mit einer selbst bezogenen Plexamp-APK. Das Verändern der App verstößt möglicherweise gegen die Nutzungsbedingungen von Plex.
+Unofficial project, not affiliated with Plex Inc. Plex and Plexamp are trademarks of Plex Inc. Intended for personal use with a Plexamp APK you obtained yourself. Modifying the app may violate Plex's terms of service.
 
-Bitte nicht während der Fahrt mitlesen. Die Stufe „Erweitert“ ist vor allem für Beifahrer gedacht.
+Please don't read along while driving. The Expanded mode is mainly meant for passengers.
