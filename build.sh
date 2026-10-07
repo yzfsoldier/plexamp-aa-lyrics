@@ -61,7 +61,7 @@ javac --release 8 -nowarn -Xlint:none -cp "$TOOLS/android.jar:$WORK/stubs" -d "$
 step "5/7 Selbsttest der Songtext-Logik"
 mkdir -p "$WORK/test"
 javac --release 8 -nowarn -cp "$WORK/classes" -d "$WORK/test" "$ROOT"/test/*.java 2>/dev/null \
-  && for t in T T2 T3; do java -cp "$WORK/classes:$WORK/test" "$t" >/dev/null || die "Test $t fehlgeschlagen"; done \
+  && for t in T T2 T3 T4; do java -cp "$WORK/classes:$WORK/test" "$t" >/dev/null || die "Test $t fehlgeschlagen"; done \
   && echo "  alle Tests bestanden"
 
 step "6/7 APK zusammenbauen"

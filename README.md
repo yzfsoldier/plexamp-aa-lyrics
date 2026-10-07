@@ -19,10 +19,10 @@ This repo contains **no Plexamp code and no APK**. It contains only the patch an
 
   The selected mode is remembered across restarts.
 - **Car only.** On the phone, lock screen and notification everything stays as usual.
-- **Settings dialog** via a shortcut on the app icon (long-press → "Songtexte AA"), including a connection test.
+- **Settings dialog** via a shortcut on the app icon (long-press → "Lyrics AA"), including a connection test.
 - Lyrics come **straight from your Plex server**: Plex Pass lyrics (LyricFind) as well as LRC files.
 
-> The settings dialog and the button labels are in German ("Songtext: An / Erweitert / Aus").
+- **German or English**, following the phone language: settings dialog, app-icon shortcut and button labels ("Lyrics: On / Expanded / Off" or "Songtext: An / Erweitert / Aus"). Other languages fall back to English.
 
 ## Requirements
 
@@ -71,9 +71,9 @@ KEYSTORE=my.jks KS_ALIAS=myalias KS_PASS=secret ./build.sh Plexamp.apk
    - In the Android Auto settings, tap "Version" repeatedly until developer settings are unlocked.
    - Enable "Unknown sources" there.
 4. **Enter your server:**
-   - Long-press the Plexamp icon → **"Songtexte AA"**.
+   - Long-press the Plexamp icon → **"Lyrics AA"** ("Songtexte AA" on German phones).
    - Easiest way: in Plex Web, open "Get Info → View XML" for any track and paste the full address from the browser's address bar. It already contains your token.
-   - Tap **Testen** (test), then **Speichern** (save).
+   - Tap **Test**, then **Save**.
 
 The patched app won't receive updates from the Play Store. For a new Plexamp version, run `build.sh` again with the new APK.
 
@@ -100,8 +100,9 @@ Plexamp's React Native UI reports the playback state to an Android media session
 | `src/…/LyricsCore.java` | server requests, Plex XML and LRC parsers (plain Java, testable) |
 | `src/…/LyricsHook.java` | Android Auto display, Off/On/Expanded button, Android Auto detection |
 | `src/…/LyricsSettings.java` | settings dialog and app-icon shortcut |
+| `src/…/I18n.java` | picks German or English based on the phone language |
 | `stubs/` | placeholder signatures of Plexamp, Media3 and Guava classes, for compiling only |
-| `test/` | self-tests: parsers, requests against a test server, input validation |
+| `test/` | self-tests: parsers, requests against a test server, input validation, languages |
 | `build/patch_smali.py` | hooks in `TreblePlayer`, `MainActivity`, `CustomActions`, `PlexampSessionCallback` |
 | `build/fetch-tools.sh` | downloads the build tools |
 | `build.sh` | the complete build |

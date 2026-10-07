@@ -95,7 +95,7 @@ public final class LyricsCore {
         }
     }
 
-    /** Checks address + token against the server. Returns null on success, else a short German error text. */
+    /** Checks address + token against the server. Returns null on success, else a short error text in the phone language (de/en). */
     public static String testConnection(Server s) {
         try {
             HttpURLConnection c = (HttpURLConnection) new URL(withToken(s.base, "/library/sections", s.token)).openConnection();
@@ -105,21 +105,22 @@ public final class LyricsCore {
             try {
                 int code = c.getResponseCode();
                 if (code == 200) return null;
-                if (code == 401 || code == 403) return "Token wird vom Server abgelehnt (HTTP " + code + ").";
-                return "Server antwortet mit HTTP " + code + ".";
+                if (code == 401 || code == 403) return I18n.t("Token wird vom Server abgelehnt (HTTP ", "The server rejected the token (HTTP ") + code + ").";
+                return I18n.t("Server antwortet mit HTTP ", "Server responded with HTTP ") + code + ".";
             } finally {
                 c.disconnect();
             }
         } catch (java.net.UnknownHostException e) {
-            return "Adresse nicht gefunden: " + e.getMessage();
+            return I18n.t("Adresse nicht gefunden: ", "Address not found: ") + e.getMessage();
         } catch (java.net.SocketTimeoutException e) {
-            return "Zeitüberschreitung – Server nicht erreichbar.";
+            return I18n.t("Zeitüberschreitung \u2013 Server nicht erreichbar.", "Timed out \u2013 server not reachable.");
         } catch (javax.net.ssl.SSLException e) {
-            return "HTTPS-Fehler: " + e.getMessage();
+            return I18n.t("HTTPS-Fehler: ", "HTTPS error: ") + e.getMessage();
         } catch (Exception e) {
             String m = String.valueOf(e.getMessage());
             if (m.toLowerCase(Locale.ROOT).contains("cleartext")) {
-                return "Unverschlüsseltes HTTP ist gesperrt – bitte die https://…plex.direct:32400-Adresse verwenden.";
+                return I18n.t("Unverschlüsseltes HTTP ist gesperrt \u2013 bitte die https://\u2026plex.direct:32400-Adresse verwenden.",
+                        "Plain HTTP is blocked \u2013 please use the https://\u2026plex.direct:32400 address.");
             }
             return e.getClass().getSimpleName() + ": " + m;
         }

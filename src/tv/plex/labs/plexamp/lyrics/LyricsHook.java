@@ -139,7 +139,7 @@ public final class LyricsHook {
     private static void startFetch(final LyricsCore.Server s, final String title, final String artist,
                                    final String key, final int gen) {
         if (s == null) {
-            Log.i(TAG, "no server configured (long-press the Plexamp icon -> Songtexte AA), cannot load lyrics for " + title);
+            Log.i(TAG, "no server configured (long-press the Plexamp icon -> Songtexte AA / Lyrics AA), cannot load lyrics for " + title);
             return;
         }
         Thread t = new Thread(new Runnable() {
@@ -269,7 +269,12 @@ public final class LyricsHook {
         }
         return id != 0 ? id : ICON_FALLBACK[m];
     }
-    private static final String[] LABELS = {"Songtext: Aus", "Songtext: An", "Songtext: Erweitert"};
+    private static final String[] LABELS_DE = {"Songtext: Aus", "Songtext: An", "Songtext: Erweitert"};
+    private static final String[] LABELS_EN = {"Lyrics: Off", "Lyrics: On", "Lyrics: Expanded"};
+
+    private static String label(int m) {
+        return I18n.german() ? LABELS_DE[m] : LABELS_EN[m];
+    }
     private static volatile int mode = -1; // -1 = not loaded yet
 
     /** Current mode, loaded once from the app's files dir (default: An). */
@@ -332,7 +337,7 @@ public final class LyricsHook {
             if (lyrics == null || (u != null && u.isLongFormAudio())) return list;
             CommandButton btn = new CommandButton.Builder()
                     .setSessionCommand(new SessionCommand(ACTION_TOGGLE, new Bundle()))
-                    .setDisplayName(LABELS[mode()])
+                    .setDisplayName(label(mode()))
                     .setIconResId(icon(mode()))
                     .build();
             ImmutableList.Builder<CommandButton> b = ImmutableList.builder();
@@ -355,7 +360,7 @@ public final class LyricsHook {
                     // An -> Erweitert -> Aus -> An
                     int next = mode() == MODE_ON ? MODE_EXPANDED : mode() == MODE_EXPANDED ? MODE_OFF : MODE_ON;
                     setMode(next);
-                    Log.i(TAG, "display mode: " + LABELS[next]);
+                    Log.i(TAG, "display mode: " + LABELS_EN[next]);
                     shownIndex = -3; // make tick() push the new layout of the text
                     refreshLayout();
                     if (player != null && lastRaw != null) {

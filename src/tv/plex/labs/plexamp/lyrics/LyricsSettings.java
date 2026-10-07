@@ -23,7 +23,7 @@ import java.util.Collections;
 
 /**
  * Settings dialog for the lyrics mod. Opened via a launcher shortcut
- * (long-press the Plexamp icon -> "Songtexte AA"). Hooked into MainActivity.onCreate/onNewIntent.
+ * (long-press the Plexamp icon -> "Songtexte AA" / "Lyrics AA"). Texts follow the phone language (de/en). Hooked into MainActivity.onCreate/onNewIntent.
  */
 public final class LyricsSettings {
 
@@ -70,8 +70,8 @@ public final class LyricsSettings {
             it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
             int icon = a.getApplicationInfo().icon;
             ShortcutInfo.Builder b = new ShortcutInfo.Builder(a, SHORTCUT_ID)
-                    .setShortLabel("Songtexte AA")
-                    .setLongLabel("Songtexte für Android Auto")
+                    .setShortLabel(I18n.t("Songtexte AA", "Lyrics AA"))
+                    .setLongLabel(I18n.t("Songtexte für Android Auto", "Lyrics for Android Auto"))
                     .setIntent(it);
             if (icon != 0) b.setIcon(Icon.createWithResource(a, icon));
             sm.addDynamicShortcuts(Collections.singletonList(b.build()));
@@ -93,23 +93,30 @@ public final class LyricsSettings {
         box.setPadding(pad, dp(a, 8), pad, 0);
 
         TextView info = new TextView(a);
-        info.setText("Damit in Android Auto Songtexte angezeigt werden, braucht der Patch die Adresse deines "
-                + "Plex-Servers und dein Plex-Token.\n\n"
-                + "Am einfachsten: In Plex Web bei einem Titel „Informationen → XML anzeigen“ "
-                + "öffnen und die komplette Adresse aus der Adresszeile hier einfügen – das Token steckt darin, "
-                + "das zweite Feld kann dann leer bleiben.\n\n"
-                + "Bitte die https-Adresse (…plex.direct:32400) verwenden.");
+        info.setText(I18n.t(
+                "Damit in Android Auto Songtexte angezeigt werden, braucht der Patch die Adresse deines "
+                        + "Plex-Servers und dein Plex-Token.\n\n"
+                        + "Am einfachsten: In Plex Web bei einem Titel \u201eInformationen \u2192 XML anzeigen\u201c "
+                        + "öffnen und die komplette Adresse aus der Adresszeile hier einfügen \u2013 das Token steckt darin, "
+                        + "das zweite Feld kann dann leer bleiben.\n\n"
+                        + "Bitte die https-Adresse (\u2026plex.direct:32400) verwenden.",
+                "To show lyrics in Android Auto, the patch needs the address of your Plex server "
+                        + "and your Plex token.\n\n"
+                        + "Easiest way: in Plex Web, open \u201cGet Info \u2192 View XML\u201d for any track and paste "
+                        + "the full address from the address bar here \u2013 it already contains the token, "
+                        + "so the second field can stay empty.\n\n"
+                        + "Please use the https address (\u2026plex.direct:32400)."));
         box.addView(info);
 
         final EditText address = new EditText(a);
-        address.setHint("Server-Adresse oder komplette Plex-URL");
+        address.setHint(I18n.t("Server-Adresse oder komplette Plex-URL", "Server address or full Plex URL"));
         address.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_URI);
         address.setSingleLine(true);
         if (current != null) address.setText(current.base);
         box.addView(address);
 
         final EditText token = new EditText(a);
-        token.setHint("X-Plex-Token (leer lassen, wenn in der URL enthalten)");
+        token.setHint(I18n.t("X-Plex-Token (leer lassen, wenn in der URL enthalten)", "X-Plex-Token (leave empty if it is in the URL)"));
         token.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         token.setSingleLine(true);
         if (current != null) token.setText(current.token);
@@ -117,15 +124,16 @@ public final class LyricsSettings {
 
         final TextView status = new TextView(a);
         status.setPadding(0, dp(a, 8), 0, 0);
-        status.setText(current != null ? "Gespeichert: " + current.base : "Noch kein Server eingetragen.");
+        status.setText(current != null ? I18n.t("Gespeichert: ", "Saved: ") + current.base
+                : I18n.t("Noch kein Server eingetragen.", "No server set up yet."));
         box.addView(status);
 
         final AlertDialog dlg = new AlertDialog.Builder(a)
-                .setTitle("Songtexte für Android Auto")
+                .setTitle(I18n.t("Songtexte für Android Auto", "Lyrics for Android Auto"))
                 .setView(box)
-                .setPositiveButton("Speichern", null)
-                .setNeutralButton("Testen", null)
-                .setNegativeButton("Abbrechen", null)
+                .setPositiveButton(I18n.t("Speichern", "Save"), null)
+                .setNeutralButton(I18n.t("Testen", "Test"), null)
+                .setNegativeButton(I18n.t("Abbrechen", "Cancel"), null)
                 .create();
 
         dlg.setOnShowListener(new DialogInterface.OnShowListener() {
@@ -142,21 +150,22 @@ public final class LyricsSettings {
                         if (addr.length() == 0 && tok.length() == 0) {
                             LyricsHook.saveServer(null);
                             LyricsHook.onServerConfigured(null);
-                            Toast.makeText(a, "Server-Eintrag gelöscht", Toast.LENGTH_SHORT).show();
+                            Toast.makeText(a, I18n.t("Server-Eintrag gelöscht", "Server entry removed"), Toast.LENGTH_SHORT).show();
                             dlg.dismiss();
                             return;
                         }
                         LyricsCore.Server s = LyricsCore.fromUserInput(addr, tok);
                         if (s == null) {
-                            status.setText("Bitte Adresse und Token eintragen (oder eine URL mit X-Plex-Token einfügen).");
+                            status.setText(I18n.t("Bitte Adresse und Token eintragen (oder eine URL mit X-Plex-Token einfügen).",
+                                    "Please enter address and token (or paste a URL containing X-Plex-Token)."));
                             return;
                         }
                         if (!LyricsHook.saveServer(s)) {
-                            status.setText("Konnte nicht speichern.");
+                            status.setText(I18n.t("Konnte nicht speichern.", "Could not save."));
                             return;
                         }
                         LyricsHook.onServerConfigured(s);
-                        Toast.makeText(a, "Gespeichert – Songtexte werden geladen", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(a, I18n.t("Gespeichert \u2013 Songtexte werden geladen", "Saved \u2013 loading lyrics"), Toast.LENGTH_SHORT).show();
                         dlg.dismiss();
                     }
                 });
@@ -167,10 +176,11 @@ public final class LyricsSettings {
                         final LyricsCore.Server s = LyricsCore.fromUserInput(
                                 address.getText().toString(), token.getText().toString());
                         if (s == null) {
-                            status.setText("Bitte Adresse und Token eintragen (oder eine URL mit X-Plex-Token einfügen).");
+                            status.setText(I18n.t("Bitte Adresse und Token eintragen (oder eine URL mit X-Plex-Token einfügen).",
+                                    "Please enter address and token (or paste a URL containing X-Plex-Token)."));
                             return;
                         }
-                        status.setText("Teste Verbindung zu " + s.base + " …");
+                        status.setText(I18n.t("Teste Verbindung zu ", "Testing connection to ") + s.base + " \u2026");
                         Thread t = new Thread(new Runnable() {
                             @Override
                             public void run() {
@@ -179,7 +189,8 @@ public final class LyricsSettings {
                                     @Override
                                     public void run() {
                                         status.setText(err == null
-                                                ? "✓ Verbindung klappt (" + s.base + "). Jetzt speichern."
+                                                ? "\u2713 " + I18n.t("Verbindung klappt (", "Connection works (") + s.base
+                                                        + I18n.t("). Jetzt speichern.", "). Now tap Save.")
                                                 : "✗ " + err);
                                     }
                                 });
