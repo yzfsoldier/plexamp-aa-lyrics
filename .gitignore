@@ -1,0 +1,12 @@
+# Signierschlüssel – niemals ins Repo
+*.jks
+*.keystore
+
+# Build-Werkzeuge und Zwischenstände
+build/tools/
+build/work/
+
+# APKs (Original und Ergebnis)
+*.apk
+*.apk.part*
+*.idsig
