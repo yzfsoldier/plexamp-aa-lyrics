@@ -73,15 +73,47 @@ done
 echo "  all tests passed"
 
 step "6/7 Rebuilding the APK"
-java -jar "$TOOLS/apktool.jar" b "$WORK/dec" -o "$WORK/unsigned.apk" >/dev/null
-python3 - "$WORK/unsigned.apk" "$WORK/mod.dex" <<'EOF'
-import re, sys, zipfile
-apk, dex = sys.argv[1], sys.argv[2]
-names = zipfile.ZipFile(apk).namelist()
-nums = [int(m.group(1) or 1) for n in names for m in [re.fullmatch(r"classes(\d*)\.dex", n)] if m]
-target = f"classes{max(nums) + 1}.dex"
-with zipfile.ZipFile(apk, "a", compression=zipfile.ZIP_DEFLATED) as z:
-    z.write(dex, target)
+java -jar "$TOOLS/apktool.jar" b "$WORK/dec" -o "$WORK/rebuilt.apk" >/dev/null
+# apktool reassembles every dex from smali. Only the dex files that contain our hooks need that;
+# all others are taken unchanged from the original APK, so Plexamp's own code stays byte-identical.
+python3 - "$IN_APK" "$WORK/rebuilt.apk" "$WORK/mod.dex" "$WORK/dec" "$WORK/unsigned.apk" <<'EOF'
+import os, re, sys, zipfile
+orig_apk, rebuilt_apk, mod_dex, dec, out_apk = sys.argv[1:6]
+
+def dex_name(smali_dir):            # smali -> classes.dex, smali_classes3 -> classes3.dex
+    m = re.fullmatch(r"smali(?:_classes(\d+))?", smali_dir)
+    return f"classes{m.group(1) or ''}.dex"
+
+hooked = set()
+for d in os.listdir(dec):
+    if not re.fullmatch(r"smali(_classes\d+)?", d):
+        continue
+    for root, _, files in os.walk(os.path.join(dec, d)):
+        for f in files:
+            with open(os.path.join(root, f), encoding="utf-8", errors="ignore") as fh:
+                if "Ltv/plex/labs/plexamp/lyrics/" in fh.read():
+                    hooked.add(dex_name(d))
+                    break
+        if dex_name(d) in hooked:
+            break
+
+orig = zipfile.ZipFile(orig_apk)
+with zipfile.ZipFile(rebuilt_apk) as src, zipfile.ZipFile(out_apk, "w") as dst:
+    dex_files = []
+    for info in src.infolist():
+        data = src.read(info.filename)
+        if re.fullmatch(r"classes\d*\.dex", info.filename):
+            dex_files.append(info.filename)
+            if info.filename not in hooked:
+                data = orig.read(info.filename)   # keep Plexamp's original code
+        dst.writestr(info, data)
+    nums = [int(re.fullmatch(r"classes(\d*)\.dex", n).group(1) or 1) for n in dex_files]
+    target = f"classes{max(nums) + 1}.dex"
+    dst.write(mod_dex, target, compress_type=zipfile.ZIP_DEFLATED)
+
+kept = sorted(set(dex_files) - hooked)
+print(f"  original dex kept: {', '.join(kept)}")
+print(f"  rebuilt with hooks: {', '.join(sorted(hooked))}")
 print(f"  added the patch as {target}")
 EOF
 
