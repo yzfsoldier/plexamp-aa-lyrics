@@ -39,6 +39,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
 
 import tv.plex.labs.plexamp.media.AndroidCarBridge;
 import tv.plex.labs.plexamp.media.PlayerStateAdapter;
@@ -136,8 +141,11 @@ public final class LyricsHook {
                         if (lyrics != null) refreshLayout();
                     } else {
                         LyricsCore.Server use = s != null ? s : LyricsCore.withoutKey(lastServer);
-                        startFetch(use, u.getTitle(), u.getArtist(), key, generation);
+                        startFetch(use, u.getTitle(), u.getArtist(), u.getAlbum(), key, generation);
                     }
+                    prefetchUpcoming(u);
+                } else {
+                    retryTask = null; // podcasts / audiobooks: nothing to load or retry
                 }
             }
 
@@ -153,39 +161,165 @@ public final class LyricsHook {
         }
     }
 
-    private static void startFetch(final LyricsCore.Server s, final String title, final String artist,
-                                   final String key, final int gen) {
-        if (s == null) {
-            Log.i(TAG, "no server configured (long-press the Plexamp icon -> Songtexte AA / Lyrics AA), cannot load lyrics for " + title);
-            return;
+    // ------------------------------------------------------------------ loading (disk cache + server)
+
+    private static final long RETRY_AFTER_MS = 30000;
+    private static final int PREFETCH_AHEAD = 3;
+    private static final int CACHE_MAX_SONGS = 2000;
+
+    /** One background thread: the current song is always queued before any prefetch. */
+    private static final ExecutorService LOADER = Executors.newSingleThreadExecutor(new ThreadFactory() {
+        @Override
+        public Thread newThread(Runnable r) {
+            Thread t = new Thread(r, "plexamp-lyrics");
+            t.setDaemon(true);
+            return t;
         }
-        Thread t = new Thread(new Runnable() {
+    });
+
+    private static volatile LyricsCache diskCache;
+    private static final Set<String> PREFETCHED = new HashSet<String>();
+    private static boolean warnedNoServer;
+    private static long retryAt;
+    private static Runnable retryTask;
+
+    /** The persistent cache in the app's files directory, or null while that directory is unknown. */
+    static LyricsCache diskCache() {
+        LyricsCache c = diskCache;
+        if (c != null) return c;
+        File sf = serverFile();
+        if (sf == null) return null;
+        c = new LyricsCache(new File(sf.getParentFile(), "lyrics_cache"), CACHE_MAX_SONGS);
+        diskCache = c;
+        return c;
+    }
+
+    private enum Outcome { FOUND, NONE, TEMPORARY_FAILURE }
+
+    private static final class Result {
+        final Outcome outcome;
+        final LyricsCore.Lyrics lyrics;
+
+        Result(Outcome outcome, LyricsCore.Lyrics lyrics) {
+            this.outcome = outcome;
+            this.lyrics = lyrics;
+        }
+    }
+
+    /** Disk cache first, then the server. Runs on the LOADER thread. */
+    private static Result load(LyricsCore.Server s, String title, String artist, String album) {
+        LyricsCache cache = diskCache();
+        String ck = LyricsCache.key(title, artist, album);
+        long now = System.currentTimeMillis();
+        if (cache != null) {
+            LyricsCache.Entry e = cache.get(ck, now);
+            if (e.state == LyricsCache.State.HIT) return new Result(Outcome.FOUND, e.lyrics);
+            if (e.state == LyricsCache.State.NO_LYRICS) return new Result(Outcome.NONE, null);
+        }
+        if (s == null) {
+            if (!warnedNoServer) {
+                warnedNoServer = true;
+                Log.i(TAG, "no server configured (long-press the Plexamp icon -> Songtexte AA / Lyrics AA); using cached lyrics only");
+            }
+            return new Result(Outcome.TEMPORARY_FAILURE, null);
+        }
+        try {
+            LyricsCore.Lyrics l = LyricsCore.fetch(s, title, artist);
+            if (cache != null) {
+                if (l != null) cache.put(ck, l);
+                else cache.putNoLyrics(ck, now);
+            }
+            return new Result(l != null ? Outcome.FOUND : Outcome.NONE, l);
+        } catch (Throwable t) {
+            Log.w(TAG, "lyrics lookup failed for " + title + " (will retry): " + t);
+            return new Result(Outcome.TEMPORARY_FAILURE, null);
+        }
+    }
+
+    private static void startFetch(final LyricsCore.Server s, final String title, final String artist,
+                                   final String album, final String key, final int gen) {
+        retryAt = 0;
+        retryTask = null;
+        LOADER.execute(new Runnable() {
             @Override
             public void run() {
-                LyricsCore.Lyrics l = null;
-                try {
-                    l = LyricsCore.fetch(s, title, artist);
-                } catch (Throwable e) {
-                    Log.w(TAG, "lyrics fetch failed for " + title + ": " + e);
-                }
-                final LyricsCore.Lyrics result = l;
-                synchronized (CACHE) {
-                    CACHE.put(key, result == null ? NONE : result);
-                }
+                final Result r = load(s, title, artist, album);
                 MAIN.post(new Runnable() {
                     @Override
                     public void run() {
+                        if (r.outcome != Outcome.TEMPORARY_FAILURE) {
+                            synchronized (CACHE) {
+                                CACHE.put(key, r.lyrics == null ? NONE : r.lyrics);
+                            }
+                        }
                         if (gen != generation) return;
-                        lyrics = result;
+                        if (r.outcome == Outcome.TEMPORARY_FAILURE) {
+                            // Offline or server unreachable: try again later for the same song.
+                            retryAt = SystemClock.elapsedRealtime() + RETRY_AFTER_MS;
+                            retryTask = new Runnable() {
+                                @Override
+                                public void run() {
+                                    LyricsCore.Server now = lastServer;
+                                    startFetch(s != null ? s : LyricsCore.withoutKey(now), title, artist, album, key, gen);
+                                }
+                            };
+                            return;
+                        }
+                        lyrics = r.lyrics;
                         shownIndex = -2; // force refresh on next tick
-                        refreshLayout(); // show/hide the "Mehr Text" button
-                        Log.i(TAG, (result == null ? "no timed lyrics for " : result.start.length + " lyric lines for ") + title);
+                        refreshLayout(); // show/hide the lyrics button
+                        Log.i(TAG, (r.lyrics == null ? "no timed lyrics for " : r.lyrics.start.length + " lyric lines for ") + title);
                     }
                 });
             }
-        }, "plexamp-lyrics");
-        t.setDaemon(true);
-        t.start();
+        });
+    }
+
+    /** Loads lyrics for the next few songs in the queue into the disk cache, for offline use. */
+    private static void prefetchUpcoming(PlayerStateAdapter.PlayerStateUpdate u) {
+        final LyricsCore.Server s = LyricsCore.withoutKey(lastServer);
+        if (s == null || diskCache() == null) return;
+        List<PlayerStateAdapter.QueueItem> q = u.getQueue();
+        if (q == null || q.isEmpty()) return;
+        int from = u.getQueueIndex() + 1;
+        for (int i = from; i < q.size() && i < from + PREFETCH_AHEAD; i++) {
+            PlayerStateAdapter.QueueItem item = q.get(i);
+            final String title = item.getTitle(), artist = item.getArtist(), album = item.getAlbum();
+            if (title == null || title.length() == 0) continue;
+            String ck = LyricsCache.key(title, artist, album);
+            synchronized (PREFETCHED) {
+                if (!PREFETCHED.add(ck)) continue;
+                if (PREFETCHED.size() > 500) PREFETCHED.clear();
+            }
+            LOADER.execute(new Runnable() {
+                @Override
+                public void run() {
+                    Result r = load(s, title, artist, album);
+                    if (r.outcome == Outcome.TEMPORARY_FAILURE) {
+                        synchronized (PREFETCHED) {
+                            PREFETCHED.remove(LyricsCache.key(title, artist, album));
+                        }
+                    }
+                }
+            });
+        }
+    }
+
+    /** Called from the settings dialog. */
+    static void clearDiskCache() {
+        final LyricsCache c = diskCache();
+        LOADER.execute(new Runnable() {
+            @Override
+            public void run() {
+                if (c != null) c.clear();
+                synchronized (PREFETCHED) {
+                    PREFETCHED.clear();
+                }
+            }
+        });
+        synchronized (CACHE) {
+            CACHE.clear();
+        }
     }
 
     private static long estimatePosition() {
@@ -206,6 +340,11 @@ public final class LyricsHook {
 
     private static void tick() {
         if (lastRaw == null || player == null) return;
+        if (retryTask != null && SystemClock.elapsedRealtime() >= retryAt) {
+            Runnable r = retryTask;
+            retryTask = null;
+            r.run();
+        }
         long pos = estimatePosition();
         int idx = currentIndex(pos);
         if (idx == shownIndex) return;

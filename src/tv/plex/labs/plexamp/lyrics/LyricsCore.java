@@ -225,6 +225,25 @@ public final class LyricsCore {
         }
     }
 
+    /** The server answered, but not with 2xx. */
+    public static final class HttpStatusException extends Exception {
+        public final int code;
+
+        HttpStatusException(int code) {
+            super("HTTP " + code);
+            this.code = code;
+        }
+    }
+
+    /**
+     * True if the error means "this does not exist on the server" (as opposed to a temporary
+     * problem such as no network, a timeout, an expired token or a server error).
+     */
+    static boolean isDefinitive(Exception e) {
+        return e instanceof HttpStatusException
+                && (((HttpStatusException) e).code == 404 || ((HttpStatusException) e).code == 400);
+    }
+
     static byte[] get(String url) throws Exception {
         HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
         c.setConnectTimeout(8000);
@@ -233,7 +252,7 @@ public final class LyricsCore {
         c.setRequestProperty("X-Plex-Product", "Plexamp");
         try {
             int code = c.getResponseCode();
-            if (code < 200 || code >= 300) throw new Exception("HTTP " + code);
+            if (code < 200 || code >= 300) throw new HttpStatusException(code);
             InputStream in = c.getInputStream();
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             byte[] buf = new byte[8192];
@@ -289,29 +308,39 @@ public final class LyricsCore {
         return fallback;
     }
 
-    static String findTrackKey(Server s, String title, String artist) {
+    /**
+     * Finds the track's ratingKey. Returns null if the server definitely has no such track;
+     * throws if the lookup failed for a temporary reason (so the result must not be cached).
+     */
+    static String findTrackKey(Server s, String title, String artist) throws Exception {
+        Exception temporary = null;
         if (s.metadataKey != null) {
             // Artwork usually points at the album: look through its tracks.
             try {
                 Document d = parseXml(get(withToken(s.base, "/library/metadata/" + s.metadataKey + "/children", s.token)));
                 String rk = pickTrack(d.getElementsByTagName("Track"), title, artist);
                 if (rk != null) return rk;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                if (!isDefinitive(e)) temporary = e;
             }
             // ...or directly at the track itself.
             try {
                 Document d = parseXml(get(withToken(s.base, "/library/metadata/" + s.metadataKey, s.token)));
                 String rk = pickTrack(d.getElementsByTagName("Track"), title, artist);
                 if (rk != null) return rk;
-            } catch (Exception ignored) {
+            } catch (Exception e) {
+                if (!isDefinitive(e)) temporary = e;
             }
         }
         // Fallback: library search by title.
         try {
             Document d = parseXml(get(withToken(s.base, "/search?type=10&query=" + enc(title), s.token)));
-            return pickTrack(d.getElementsByTagName("Track"), title, artist);
-        } catch (Exception ignored) {
+            String rk = pickTrack(d.getElementsByTagName("Track"), title, artist);
+            if (rk != null) return rk;
+        } catch (Exception e) {
+            if (!isDefinitive(e)) temporary = e;
         }
+        if (temporary != null) throw temporary;
         return null;
     }
 
@@ -441,11 +470,21 @@ public final class LyricsCore {
         return new Lyrics(s, t);
     }
 
-    /** Full lookup: track -> lyric stream -> timed lines. Returns null when nothing usable exists. */
+    /**
+     * Full lookup: track -> lyric stream -> timed lines.
+     * Returns null when the server definitely has no usable timed lyrics for this song;
+     * throws when the lookup failed for a temporary reason (no network, timeout, token, server error).
+     */
     public static Lyrics fetch(Server s, String title, String artist) throws Exception {
         String trackKey = findTrackKey(s, title, artist);
         if (trackKey == null) return null;
-        String streamKey = findLyricStream(s, trackKey);
+        String streamKey;
+        try {
+            streamKey = findLyricStream(s, trackKey);
+        } catch (Exception e) {
+            if (isDefinitive(e)) return null;
+            throw e;
+        }
         if (streamKey == null) return null;
         String sep = streamKey.indexOf('?') >= 0 ? "&" : "?";
         try {
@@ -454,9 +493,15 @@ public final class LyricsCore {
             if (l != null) return l;
             Lyrics lrc = parseLrc(new String(xml, "UTF-8"));
             if (lrc != null) return lrc;
-        } catch (Exception ignored) {
+        } catch (Exception e) {
+            if (!isDefinitive(e)) throw e;
         }
-        byte[] rawBody = get(withToken(s.base, streamKey, s.token));
-        return parseLrc(new String(rawBody, "UTF-8"));
+        try {
+            byte[] rawBody = get(withToken(s.base, streamKey, s.token));
+            return parseLrc(new String(rawBody, "UTF-8"));
+        } catch (Exception e) {
+            if (isDefinitive(e)) return null;
+            throw e;
+        }
     }
 }

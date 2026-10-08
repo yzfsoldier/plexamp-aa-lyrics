@@ -21,6 +21,7 @@ This repo contains **no Plexamp code and no APK**. It contains only the patch an
 - **Car only.** On the phone, lock screen and notification everything stays as usual.
 - **Settings dialog** via a shortcut on the app icon (long-press → "Lyrics AA"), including a connection test.
 - Lyrics come **straight from your Plex server**: Plex Pass lyrics (LyricFind) as well as LRC files.
+- **Offline cache.** Every loaded lyric is stored on the phone and reused next time, even without network or a configured server. While a song plays, the lyrics of the next three songs in the queue are loaded in the background, so a dead zone on the road doesn't cost you lyrics. Songs without lyrics are remembered for 7 days before the server is asked again. The cache holds up to 2000 songs (roughly 5–10 MB, least recently played go first) and can be cleared in the settings dialog.
 
 - **German or English**, following the phone language: settings dialog, app-icon shortcut and button labels ("Lyrics: On / Expanded / Off" or "Songtext: An / Erweitert / Aus"). Other languages fall back to English.
 
@@ -91,18 +92,19 @@ So you never end up with a broken APK. The affected patch then needs to be adapt
 
 Plexamp's React Native UI reports the playback state to an Android media session (Media3), and that session is what Android Auto displays. The patch hooks into exactly this hand-over (`TreblePlayer.updateFromState`):
 
-1. When the track changes, `LyricsCore` looks up the track on your Plex server and fetches its lyrics stream (`/library/streams/…?format=xml`).
+1. When the track changes, the patch first checks the offline cache. Otherwise `LyricsCore` looks up the track on your Plex server, fetches its lyrics stream (`/library/streams/…?format=xml`) and stores the result in the cache. If the server can't be reached, it tries again every 30 seconds.
 2. A 200 ms tick determines the current line from the playback position.
 3. When the line changes, the media session gets a new title and subtitle. This only happens while Android Auto is connected.
 
 | Path | Contents |
 |---|---|
 | `src/…/LyricsCore.java` | server requests, Plex XML and LRC parsers (plain Java, testable) |
+| `src/…/LyricsCache.java` | offline cache on the phone: one file per song, negative entries, LRU limit (plain Java, testable) |
 | `src/…/LyricsHook.java` | Android Auto display, Off/On/Expanded button, Android Auto detection |
 | `src/…/LyricsSettings.java` | settings dialog and app-icon shortcut |
 | `src/…/I18n.java` | picks German or English based on the phone language |
 | `stubs/` | placeholder signatures of Plexamp, Media3 and Guava classes, for compiling only |
-| `test/` | self-tests: parsers, requests against a test server, input validation, languages |
+| `test/` | self-tests: parsers, requests against a test server, input validation, languages, offline cache |
 | `build/patch_smali.py` | hooks in `TreblePlayer`, `MainActivity`, `CustomActions`, `PlexampSessionCallback` |
 | `build/fetch-tools.sh` | downloads the build tools |
 | `build.sh` | the complete build |

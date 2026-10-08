@@ -19,7 +19,7 @@ package tv.plex.labs.plexamp.media;
 import java.util.List;
 public final class PlayerStateAdapter {
   public static final class State { public static final State PLAYING=null, PAUSED=null, BUFFERING=null, STOPPED=null; }
-  public static final class QueueItem {}
+  public static final class QueueItem { public final String getId(){return null;} public final String getTitle(){return null;} public final String getArtist(){return null;} public final String getAlbum(){return null;} public final long getDurationMs(){return 0;} }
   public static final class PlayerStateUpdate {
     public PlayerStateUpdate(String id, String title, String artist, String album, long d, long p, State s, String thumb, boolean hasNext, boolean longForm, boolean remoteSkip, int sf, int sb, int pqi, int pqc, float rating, String repeat, String shuffle, List<QueueItem> queue, int qi) {}
     public final String getId(){return null;} public final String getTitle(){return null;} public final String getArtist(){return null;} public final String getAlbum(){return null;}

@@ -101,6 +101,28 @@ public final class LyricsSettings {
         return (int) TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v, c.getResources().getDisplayMetrics());
     }
 
+    /** Fills in "Offline cache: N songs (x.x MB)" in the background. */
+    private static void updateCacheInfo(final Activity a, final TextView view) {
+        Thread t = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                LyricsCache c = LyricsHook.diskCache();
+                long[] st = c != null ? c.stats() : new long[]{0, 0};
+                final String text = String.format(java.util.Locale.getDefault(),
+                        I18n.t("Offline-Speicher: %d Songs (%.1f MB)", "Offline cache: %d songs (%.1f MB)"),
+                        st[0], st[1] / 1048576.0);
+                a.runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        view.setText(text);
+                    }
+                });
+            }
+        }, "plexamp-lyrics-cache-info");
+        t.setDaemon(true);
+        t.start();
+    }
+
     static void show(final Activity a) {
         LyricsCore.Server current = LyricsHook.loadServer();
 
@@ -144,6 +166,33 @@ public final class LyricsSettings {
         status.setText(current != null ? I18n.t("Gespeichert: ", "Saved: ") + current.base
                 : I18n.t("Noch kein Server eingetragen.", "No server set up yet."));
         box.addView(status);
+
+        // Offline cache: size + clear button
+        LinearLayout cacheRow = new LinearLayout(a);
+        cacheRow.setOrientation(LinearLayout.HORIZONTAL);
+        cacheRow.setGravity(android.view.Gravity.CENTER_VERTICAL);
+        cacheRow.setPadding(0, dp(a, 12), 0, 0);
+        final TextView cacheInfo = new TextView(a);
+        cacheInfo.setText(I18n.t("Offline-Speicher: …", "Offline cache: …"));
+        cacheRow.addView(cacheInfo, new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        final Button clearCache = new Button(a);
+        clearCache.setText(I18n.t("Leeren", "Clear"));
+        cacheRow.addView(clearCache);
+        box.addView(cacheRow);
+        updateCacheInfo(a, cacheInfo);
+        clearCache.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                LyricsHook.clearDiskCache();
+                Toast.makeText(a, I18n.t("Offline-Speicher geleert", "Offline cache cleared"), Toast.LENGTH_SHORT).show();
+                cacheInfo.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        updateCacheInfo(a, cacheInfo);
+                    }
+                }, 500);
+            }
+        });
 
         final AlertDialog dlg = new AlertDialog.Builder(a)
                 .setTitle(I18n.t("Songtexte für Android Auto", "Lyrics for Android Auto"))
